@@ -1,0 +1,236 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { parseWakeUpResponse, extractWakeUpKey } from "@/lib/utils/wakeup";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const manualCourseSchema = z.object({
+    scheduleId: z.string().uuid(),
+    name: z.string().min(1),
+    room: z.string().optional(),
+    teacher: z.string().optional(),
+    dayOfWeek: z.coerce.number().min(1).max(7),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/),
+    endTime: z.string().regex(/^\d{2}:\d{2}$/),
+    startWeek: z.coerce.number().min(1),
+    endWeek: z.coerce.number().min(1),
+});
+
+/**
+ * Import a schedule via WakeUp share key or message.
+ * Creates or replaces the schedule + courses for that semester_tag.
+ */
+export async function importWakeUpSchedule(token: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const key = extractWakeUpKey(token);
+    if (!key) return { error: "无法识别口令，请粘贴完整的分享消息或32位口令" };
+
+    // Fetch from WakeUp API (server-side to avoid CORS)
+    let rawText: string;
+    try {
+        const res = await fetch(
+            `https://i.wakeup.fun/share_schedule/get?key=${key}`,
+            { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("WakeUp API 无响应");
+        const json = await res.json();
+        if (json.status !== 1) throw new Error("口令无效或已过期");
+        rawText = json.data;
+    } catch (e) {
+        return { error: e instanceof Error ? e.message : "获取课表失败" };
+    }
+
+    // Parse
+    let parsed;
+    try {
+        parsed = parseWakeUpResponse(rawText);
+    } catch (e) {
+        return { error: `解析课表数据失败: ${e instanceof Error ? e.message : "未知错误"}` };
+    }
+
+    // Upsert schedule row
+    let schedule: { id: string } | null = null;
+    try {
+        const { data, error: schedErr } = await supabase
+            .from("schedules")
+            .upsert(
+                {
+                    user_id: user.id,
+                    semester_tag: parsed.semesterTag,
+                    school: parsed.school,
+                    start_date: parsed.startDate,
+                    max_weeks: parsed.maxWeeks,
+                    is_active: true,
+                    wakeup_raw: null,
+                },
+                { onConflict: "user_id,semester_tag" }
+            )
+            .select()
+            .single();
+
+        if (schedErr) {
+            console.error("[importWakeUpSchedule] upsert error:", schedErr);
+            const msg = schedErr.message ?? String(schedErr);
+            if (msg.includes("ECONNRESET") || msg.includes("fetch failed")) {
+                return { error: "连接数据库失败（网络不稳定），请重试" };
+            }
+            return { error: `保存学期信息失败: ${msg}` };
+        }
+        schedule = data;
+    } catch (e) {
+        console.error("[importWakeUpSchedule] exception:", e);
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("ECONNRESET") || msg.includes("fetch failed")) {
+            return { error: "连接数据库失败（网络不稳定），请重试" };
+        }
+        return { error: `保存学期信息失败: ${msg}` };
+    }
+
+    if (!schedule) return { error: "保存学期信息失败（返回为空），请重试" };
+
+    // Delete existing courses for this schedule
+    await supabase.from("courses").delete().eq("schedule_id", schedule.id);
+
+    // Insert all courses
+    const courseRows = parsed.courses.map((c) => ({
+        schedule_id: schedule!.id,
+        user_id: user.id,
+        name: c.name,
+        room: c.room,
+        teacher: c.teacher,
+        day_of_week: c.dayOfWeek,
+        start_time: c.startTime,
+        end_time: c.endTime,
+        start_week: c.startWeek,
+        end_week: c.endWeek,
+        color: c.color,
+    }));
+
+    if (courseRows.length > 0) {
+        const { error: insertErr } = await supabase.from("courses").insert(courseRows);
+        if (insertErr) {
+            console.error("[importWakeUpSchedule] insert courses error:", insertErr);
+            return { error: `保存课程数据失败: ${insertErr.message}` };
+        }
+    }
+
+    revalidatePath("/dashboard/profile");
+    return { success: true, semesterTag: parsed.semesterTag, courseCount: courseRows.length };
+
+}
+
+/**
+ * Manually add a single course to an existing schedule.
+ */
+export async function addManualCourse(formData: FormData) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const parsed = manualCourseSchema.safeParse({
+        scheduleId: formData.get("scheduleId"),
+        name: formData.get("name"),
+        room: formData.get("room"),
+        teacher: formData.get("teacher"),
+        dayOfWeek: formData.get("dayOfWeek"),
+        startTime: formData.get("startTime"),
+        endTime: formData.get("endTime"),
+        startWeek: formData.get("startWeek"),
+        endWeek: formData.get("endWeek"),
+    });
+
+    if (!parsed.success) return { error: "请检查输入格式" };
+
+    const { error } = await supabase.from("courses").insert({
+        schedule_id: parsed.data.scheduleId,
+        user_id: user.id,
+        name: parsed.data.name,
+        room: parsed.data.room || null,
+        teacher: parsed.data.teacher || null,
+        day_of_week: parsed.data.dayOfWeek,
+        start_time: parsed.data.startTime,
+        end_time: parsed.data.endTime,
+        start_week: parsed.data.startWeek,
+        end_week: parsed.data.endWeek,
+    });
+
+    if (error) return { error: "添加课程失败" };
+    revalidatePath("/dashboard/profile");
+    return { success: true };
+}
+
+/**
+ * Delete a course by ID.
+ */
+export async function deleteCourse(courseId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const { error } = await supabase
+        .from("courses")
+        .delete()
+        .eq("id", courseId)
+        .eq("user_id", user.id);
+
+    if (error) return { error: "删除失败" };
+    revalidatePath("/dashboard/profile");
+    return { success: true };
+}
+
+/**
+ * Get all schedules for the current user.
+ */
+export async function getMySchedules() {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data } = await supabase
+        .from("schedules")
+        .select("*, courses(*)")
+        .eq("user_id", user.id)
+        .order("imported_at", { ascending: false });
+
+    return data ?? [];
+}
+
+/**
+ * Set a schedule as active (deactivates others).
+ */
+export async function setActiveSchedule(scheduleId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    // Deactivate all
+    await supabase
+        .from("schedules")
+        .update({ is_active: false })
+        .eq("user_id", user.id);
+
+    // Activate target
+    const { error } = await supabase
+        .from("schedules")
+        .update({ is_active: true })
+        .eq("id", scheduleId)
+        .eq("user_id", user.id);
+
+    if (error) return { error: "更新失败" };
+    revalidatePath("/dashboard/profile");
+    return { success: true };
+}
