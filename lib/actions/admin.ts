@@ -9,6 +9,11 @@ const updateQuotaSchema = z.object({
     roomQuota: z.coerce.number().min(0).max(100),
 });
 
+const updateUserScheduleQuotaSchema = z.object({
+    userId: z.string().uuid(),
+    scheduleQuota: z.coerce.number().min(0).max(100),
+});
+
 async function assertSuperAdmin() {
     const supabase = await createClient();
     const {
@@ -38,20 +43,41 @@ export async function getAllUsers() {
 }
 
 export async function updateUserQuota(formData: FormData) {
-    const supabase = await assertSuperAdmin();
-
     const parsed = updateQuotaSchema.safeParse({
         userId: formData.get("userId"),
         roomQuota: formData.get("roomQuota"),
     });
-    if (!parsed.success) return { error: "无效参数" };
 
+    if (!parsed.success) return { error: "参数不合法" };
+
+    const supabase = await assertSuperAdmin();
     const { error } = await supabase
         .from("profiles")
         .update({ room_quota: parsed.data.roomQuota })
         .eq("id", parsed.data.userId);
 
-    if (error) return { error: "更新失败" };
+    if (error) return { error: "更新 Room 额度失败" };
+
+    revalidatePath("/admin/users");
+    return { success: true };
+}
+
+export async function updateUserScheduleQuota(formData: FormData) {
+    const parsed = updateUserScheduleQuotaSchema.safeParse({
+        userId: formData.get("userId"),
+        scheduleQuota: formData.get("scheduleQuota"),
+    });
+
+    if (!parsed.success) return { error: "参数不合法" };
+
+    const supabase = await assertSuperAdmin();
+    const { error } = await supabase
+        .from("profiles")
+        .update({ schedule_quota: parsed.data.scheduleQuota })
+        .eq("id", parsed.data.userId);
+
+    if (error) return { error: "更新课表额度失败" };
+
     revalidatePath("/admin/users");
     return { success: true };
 }

@@ -5,6 +5,7 @@ export interface Profile {
     display_name: string | null;
     role: "user" | "superadmin";
     room_quota: number;
+    schedule_quota: number;
     created_at: string;
 }
 

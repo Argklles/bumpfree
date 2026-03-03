@@ -54,6 +54,30 @@ export async function importWakeUpSchedule(token: string) {
         return { error: `解析课表数据失败: ${e instanceof Error ? e.message : "未知错误"}` };
     }
 
+    // Check Schedule Quota
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("schedule_quota")
+        .eq("id", user.id)
+        .single();
+
+    const { count: scheduleCount } = await supabase
+        .from("schedules")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+    // If quota check required (meaning it's a NEW schedule, not an update to an existing semester_tag)
+    const { data: existingSchedule } = await supabase
+        .from("schedules")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("semester_tag", parsed.semesterTag)
+        .single();
+
+    if (!existingSchedule && profile && scheduleCount !== null && scheduleCount >= profile.schedule_quota) {
+        return { error: `已达到课表储存上限（${profile.schedule_quota} 份），请先在个人中心删除闲置课表` };
+    }
+
     // Upsert schedule row
     let schedule: { id: string } | null = null;
     try {
@@ -231,6 +255,39 @@ export async function setActiveSchedule(scheduleId: string) {
         .eq("user_id", user.id);
 
     if (error) return { error: "更新失败" };
+    revalidatePath("/dashboard/profile");
+    return { success: true };
+}
+
+/**
+ * Delete an entire schedule and its courses.
+ */
+export async function deleteSchedule(scheduleId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const { error } = await supabase
+        .from("schedules")
+        .delete()
+        .eq("id", scheduleId)
+        .eq("user_id", user.id);
+
+    if (error) return { error: "删除课表失败" };
+
+    // Attempt to make another schedule active if one exists
+    const { data: remainingSchedules } = await supabase
+        .from("schedules")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+    if (remainingSchedules && remainingSchedules.length > 0) {
+        await setActiveSchedule(remainingSchedules[0].id);
+    }
+
     revalidatePath("/dashboard/profile");
     return { success: true };
 }

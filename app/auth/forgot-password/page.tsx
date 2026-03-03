@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { registerAction } from "@/lib/actions/auth";
+import { requestPasswordResetAction } from "@/lib/actions/auth";
 import { Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function RegisterPage() {
+export default function ForgotPasswordPage() {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string>("");
     const [successMessage, setSuccessMessage] = useState<string>("");
@@ -21,7 +21,7 @@ export default function RegisterPage() {
         setSuccessMessage("");
         const formData = new FormData(e.currentTarget);
         startTransition(async () => {
-            const result = await registerAction(formData);
+            const result = await requestPasswordResetAction(formData);
             if (result?.error) {
                 setError(result.error);
                 toast.error(result.error);
@@ -41,8 +41,8 @@ export default function RegisterPage() {
                 </div>
                 <Card>
                     <CardHeader className="text-center">
-                        <CardTitle>创建账号</CardTitle>
-                        <CardDescription>加入 BumpFree，开始找共同空闲</CardDescription>
+                        <CardTitle>找回密码</CardTitle>
+                        <CardDescription>查收邮件并重置你的密码</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {successMessage ? (
@@ -55,55 +55,32 @@ export default function RegisterPage() {
                                     {successMessage}
                                 </p>
                                 <Button asChild className="w-full" variant="outline">
-                                    <Link href="/auth/login">去登录</Link>
+                                    <Link href="/auth/login">返回登录</Link>
                                 </Button>
                             </div>
                         ) : (
                             <>
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="displayName">昵称</Label>
-                                        <Input
-                                            id="displayName"
-                                            name="displayName"
-                                            placeholder="你的名字"
-                                            required
-                                            maxLength={50}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label htmlFor="email">邮箱</Label>
                                         <Input
                                             id="email"
                                             name="email"
                                             type="email"
-                                            placeholder="you@example.com"
+                                            placeholder="预留的注册邮箱"
                                             required
                                             autoComplete="email"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="password">密码</Label>
-                                        <Input
-                                            id="password"
-                                            name="password"
-                                            type="password"
-                                            placeholder="至少6位"
-                                            required
-                                            minLength={6}
-                                            autoComplete="new-password"
                                         />
                                     </div>
                                     {error && <p className="text-sm text-destructive">{error}</p>}
                                     <Button type="submit" className="w-full" disabled={isPending}>
                                         {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                        注册
+                                        发送重置链接
                                     </Button>
                                 </form>
                                 <div className="mt-4 text-center text-sm text-muted-foreground">
-                                    已有账号？{" "}
                                     <Link href="/auth/login" className="text-primary hover:underline">
-                                        直接登录
+                                        返回登录
                                     </Link>
                                 </div>
                             </>

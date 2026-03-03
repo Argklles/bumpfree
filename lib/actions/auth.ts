@@ -39,9 +39,14 @@ export async function registerAction(formData: FormData) {
 
     const supabase = await createClient();
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://bumpfree.vercel.app';
+
     const { data, error } = await supabase.auth.signUp({
         email: parsed.data.email,
         password: parsed.data.password,
+        options: {
+            emailRedirectTo: `${siteUrl}/auth/callback`,
+        }
     });
     if (error) return { error: error.message };
     if (!data.user) return { error: "注册失败，请重试" };
@@ -53,6 +58,11 @@ export async function registerAction(formData: FormData) {
         display_name: parsed.data.displayName,
     });
 
+    if (!data.session) {
+        // Email confirmation required
+        return { success: true, message: "注册成功！请前往您的邮箱点击验证链接。" };
+    }
+
     redirect("/dashboard");
 }
 
@@ -60,6 +70,34 @@ export async function logoutAction() {
     const supabase = await createClient();
     await supabase.auth.signOut();
     redirect("/");
+}
+
+export async function requestPasswordResetAction(formData: FormData) {
+    const email = formData.get("email") as string;
+    if (!email) return { error: "请输入有效的邮箱" };
+
+    const supabase = await createClient();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://bumpfree.vercel.app';
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${siteUrl}/auth/update-password`,
+    });
+
+    if (error) return { error: error.message };
+
+    return { success: true, message: "密码重置邮件已发送，请检查收件箱" };
+}
+
+export async function updatePasswordFromRecoveryAction(formData: FormData) {
+    const password = formData.get("password") as string;
+    if (!password || password.length < 6) return { error: "密码至少需要6位" };
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) return { error: error.message };
+
+    redirect("/dashboard");
 }
 
 export async function getCurrentUser() {

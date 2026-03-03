@@ -4,6 +4,7 @@ import { AdminUsersClient } from "@/components/admin/AdminUsersClient";
 import { getGlobalStats } from "@/lib/actions/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, DoorOpen } from "lucide-react";
+import { PageWrapper } from "@/components/motion/PageWrapper";
 
 export default async function AdminUsersPage() {
     const supabase = await createClient();
@@ -12,15 +13,15 @@ export default async function AdminUsersPage() {
     } = await supabase.auth.getUser();
     if (!user) redirect("/auth/login");
 
-    const { data: users } = await supabase
+    const { data: profiles } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, display_name, role, room_quota, schedule_quota, created_at")
         .order("created_at", { ascending: false });
 
     const stats = await getGlobalStats();
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <PageWrapper className="max-w-4xl mx-auto space-y-6">
             <div>
                 <h1 className="text-2xl font-bold">用户管理</h1>
                 <p className="text-muted-foreground text-sm mt-1">管理所有用户账号和权限配额</p>
@@ -52,7 +53,7 @@ export default async function AdminUsersPage() {
                 </Card>
             </div>
 
-            <AdminUsersClient users={users ?? []} currentUserId={user.id} />
-        </div>
+            <AdminUsersClient users={profiles ?? []} currentUserId={user.id} />
+        </PageWrapper>
     );
 }

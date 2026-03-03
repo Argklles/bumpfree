@@ -12,6 +12,7 @@ import {
     Mail,
     LogOut,
     Shield,
+    Settings,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -40,6 +41,7 @@ export default async function DashboardLayout({
         { href: "/dashboard/profile", label: "我的课表", icon: User },
         { href: "/dashboard/rooms", label: "我的 Room", icon: DoorOpen },
         { href: "/dashboard/invitations", label: "邀请通知", icon: Mail },
+        { href: "/dashboard/settings", label: "账号设置", icon: Settings },
     ];
 
     return (

@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { loginAction } from "@/lib/actions/auth";
+import { updatePasswordFromRecoveryAction } from "@/lib/actions/auth";
 import { Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+export default function UpdatePasswordPage() {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string>("");
 
@@ -18,8 +17,17 @@ export default function LoginPage() {
         e.preventDefault();
         setError("");
         const formData = new FormData(e.currentTarget);
+
+        const password = formData.get("password") as string;
+        const confirmPassword = formData.get("confirmPassword") as string;
+
+        if (password !== confirmPassword) {
+            setError("两次输入的密码不一致");
+            return;
+        }
+
         startTransition(async () => {
-            const result = await loginAction(formData);
+            const result = await updatePasswordFromRecoveryAction(formData);
             if (result?.error) {
                 setError(result.error);
                 toast.error(result.error);
@@ -36,51 +44,39 @@ export default function LoginPage() {
                 </div>
                 <Card>
                     <CardHeader className="text-center">
-                        <CardTitle>欢迎回来</CardTitle>
-                        <CardDescription>登录你的 BumpFree 账号</CardDescription>
+                        <CardTitle>设置新密码</CardTitle>
+                        <CardDescription>请输入您的新登录密码</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">邮箱</Label>
-                                <Input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    required
-                                    autoComplete="email"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="password">密码</Label>
+                                <Label htmlFor="password">新密码</Label>
                                 <Input
                                     id="password"
                                     name="password"
                                     type="password"
-                                    placeholder="••••••••"
+                                    placeholder="至少6位"
                                     required
-                                    autoComplete="current-password"
+                                    minLength={6}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="confirmPassword">确认新密码</Label>
+                                <Input
+                                    id="confirmPassword"
+                                    name="confirmPassword"
+                                    type="password"
+                                    placeholder="再次输入密码"
+                                    required
+                                    minLength={6}
                                 />
                             </div>
                             {error && <p className="text-sm text-destructive">{error}</p>}
                             <Button type="submit" className="w-full" disabled={isPending}>
                                 {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                登录
+                                确认修改
                             </Button>
                         </form>
-                        <div className="mt-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-4">
-                            <span>
-                                还没账号？{" "}
-                                <Link href="/auth/register" className="text-primary hover:underline">
-                                    免费注册
-                                </Link>
-                            </span>
-                            <span className="text-border">|</span>
-                            <Link href="/auth/forgot-password" className="text-primary hover:underline">
-                                忘记密码？
-                            </Link>
-                        </div>
                     </CardContent>
                 </Card>
             </div>
