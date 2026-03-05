@@ -66,6 +66,8 @@ export interface Invitation {
     inviter?: Profile;
 }
 
+// RoomEvent 已移至 plugins/pending-events/types.ts
+
 // Calendar event type for react-big-calendar
 export interface CalendarEvent {
     id: string;
@@ -79,5 +81,8 @@ export interface CalendarEvent {
         courseName: string;
         room: string | null;
         teacher: string | null;
+        isPending?: boolean;    // true for room pending events
+        eventStatus?: "pending" | "confirmed" | "cancelled";
+        description?: string | null;
     };
 }

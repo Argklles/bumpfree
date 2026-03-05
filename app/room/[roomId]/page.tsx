@@ -6,6 +6,7 @@ import { Lock, Globe, Users } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Zap } from "lucide-react";
+import { FEATURES } from "@/plugins/features";
 
 interface RoomPageProps {
     params: Promise<{ roomId: string }>;
@@ -98,6 +99,19 @@ export default async function RoomPage({ params }: RoomPageProps) {
 
     const validMemberData = memberData.filter(Boolean) as NonNullable<typeof memberData[0]>[];
 
+    // [Feature: PENDING_EVENTS] Get room pending events
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let roomEvents: any[] = [];
+    if (FEATURES.PENDING_EVENTS) {
+        const { data } = await supabase
+            .from("room_events")
+            .select("*")
+            .eq("room_id", roomId)
+            .neq("status", "cancelled")
+            .order("start_time", { ascending: true });
+        roomEvents = data ?? [];
+    }
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
@@ -151,6 +165,9 @@ export default async function RoomPage({ params }: RoomPageProps) {
                     memberData={validMemberData}
                     roomName={room.name}
                     isReadOnly={!isMember}
+                    currentUser={user}
+                    roomAdminId={room.admin_id}
+                    {...(FEATURES.PENDING_EVENTS ? { roomEvents: roomEvents ?? [], roomId } : {})}
                 />
             </main>
         </div>
