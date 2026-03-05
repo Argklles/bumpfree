@@ -49,11 +49,12 @@ interface RoomCalendarProps {
     roomId?: string;
     currentUser?: any;
     roomAdminId?: string;
+    roomBgImageUrl?: string | null;
 }
 
 type ViewMode = "month" | "week" | "person";
 
-export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = [], roomId, currentUser, roomAdminId }: RoomCalendarProps) {
+export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = [], roomId, currentUser, roomAdminId, roomBgImageUrl }: RoomCalendarProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("week");
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -388,6 +389,7 @@ export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = []
                             onFontColorChange={handleFontColorChange}
                             currentBgImage={bgImage}
                             onBgImageChange={handleBgImageChange}
+                            roomBgImageUrl={roomBgImageUrl}
                         />
                     )}
 
@@ -413,11 +415,11 @@ export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = []
 
             {/* Calendar */}
             <div className="flex-1 overflow-hidden p-2 relative">
-                {bgImage && (
+                {(bgImage || roomBgImageUrl) && (
                     <div
                         className="absolute inset-0 z-0 pointer-events-none"
                         style={{
-                            backgroundImage: `url(${bgImage})`,
+                            backgroundImage: `url(${bgImage || roomBgImageUrl})`,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
                             opacity: 0.12,

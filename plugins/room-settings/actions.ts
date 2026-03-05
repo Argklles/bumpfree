@@ -54,3 +54,33 @@ export async function updateMemberColor(roomId: string, targetUserId: string, ne
     revalidatePath(`/room/${roomId}`);
     return { success: true };
 }
+
+export async function updateRoomGlobalBg(roomId: string, bgImageUrl: string | null) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    // Verify current user is the room admin
+    const { data: room } = await supabase
+        .from("rooms")
+        .select("admin_id")
+        .eq("id", roomId)
+        .single();
+
+    if (!room || room.admin_id !== user.id) return { error: "权限不足，只能由房主修改全局背景" };
+
+    const { error } = await supabase
+        .from("rooms")
+        .update({ bg_image_url: bgImageUrl })
+        .eq("id", roomId);
+
+    if (error) {
+        console.error("[updateRoomGlobalBg] Error:", error);
+        return { error: "更新全局背景失败" };
+    }
+
+    revalidatePath(`/room/${roomId}`);
+    return { success: true };
+}

@@ -37,8 +37,9 @@
 | 类型 | 路径 | 说明 |
 |------|------|------|
 | UI 组件 | `plugins/room-settings/RoomSettingsDialog.tsx` | 设置弹窗（⚙️ 齿轮图标触发） |
-| Server Actions | `plugins/room-settings/actions.ts` | `updateMemberColor` 修改成员代表色 |
+| Server Actions | `plugins/room-settings/actions.ts` | `updateMemberColor` 修改成员代表色, `updateRoomGlobalBg` 更新全局背景 |
 | 数据库 | `supabase/migrations/004_room_members_update_policy.sql` | 为 `room_members` 添加 UPDATE RLS 策略 |
+| 数据库 | `supabase/add/002_add_global_bg.sql` | `rooms.bg_image_url` 字段及 Storage 策略 |
 | 依赖 | `components/ui/slider.tsx` | shadcn Slider 组件（字体大小滑块） |
 
 ### 功能明细
@@ -51,11 +52,16 @@
 - 4 个预设色 + 原生颜色选择器
 - 存储：`localStorage` → `room-font-color`
 
-#### 2.3 背景图片（本地）
-- 支持上传 JPG / PNG / WebP（≤ 5MB）
-- 以 12% 透明度铺满日历背景
-- 存储：`localStorage` → `room-bg-image`（base64 DataURL）
-- 支持预览和一键清除
+#### 2.3 背景图片（全局/本地双层架构）
+- **全局背景 (全局同步)**
+  - 仅当前 Room 管理员可设置（上传图片至 Supabase Storage）。
+  - 图片 URL 存储在 `rooms.bg_image_url`，面向所有访问者生效。
+  - Storage Bucket: `room-backgrounds`，带严格的 RLS。
+- **个人本地背景 (仅本地有效)**
+  - 任何人皆可上传本地背景。
+  - 本地背景**优先级最高**，会覆盖掉群组的全局背景。
+  - 存储：`localStorage` → `room-bg-image`（base64 DataURL）。
+- 支持一键清除背景，恢复默认透明效果（全局以 12% 透明度覆盖）。
 
 #### 2.4 成员代表色（全局同步）
 - 修改 `room_members.color` 字段，全局可见
@@ -91,6 +97,7 @@
 | `003_fix_rooms_recursion.sql` | 修复 rooms 递归查询 | ✅ 已执行 |
 | `004_room_members_update_policy.sql` | 添加 `room_members` UPDATE RLS | ⚠️ 需手动执行 |
 | `add/001_add_event.sql` | 创建 `room_events` 表 | ⚠️ 需手动执行 |
+| `add/002_add_global_bg.sql` | 新增 `bg_image_url` 并配置 Storage RLS | ⚠️ 需手动执行 |
 
 ---
 
@@ -124,12 +131,16 @@
 5. 可选：`npx shadcn@latest remove slider`（如无其他地方使用）
 
 #### 去除「背景图片」功能（仅去掉背景，保留其他设置）
-1. 在 `plugins/room-settings/RoomSettingsDialog.tsx` 中删除「背景图片」整个 section（搜索 `Background Image`）
+1. 在 `plugins/room-settings/RoomSettingsDialog.tsx` 中删除「设置背景」相关（搜索 `Background Settings` 及其子区块，或者 `uploadingBg`、`handleGlobalBgUpload` 逻辑并移除相应导入）。
 2. 在 `RoomCalendar.tsx` 中：
-   - 删除 `bgImage` state 和 `handleBgImageChange` 函数
+   - 删除 `bgImage` 与 `roomBgImageUrl` 的渲染及 `handleBgImageChange` 函数
    - 删除 `useEffect` 中读取 `room-bg-image` 的行
    - 删除 `<div>` 背景图 overlay
-   - 删除传给 `RoomSettingsDialog` 的 `currentBgImage` / `onBgImageChange` props
+   - 删除传给 `RoomSettingsDialog` 的 `currentBgImage`、`onBgImageChange` 和 `roomBgImageUrl` props
+3. 在 `app/room/[roomId]/page.tsx` 中删除向日历传入 `roomBgImageUrl={room.bg_image_url}` 逻辑
+4. 数据库侧（可选）：
+   - `ALTER TABLE public.rooms DROP COLUMN bg_image_url;`
+   - 去 Supabase Storage 删除 `room-backgrounds` 桶
 
 #### 去除「日历布局优化（10小时视窗）」
 1. 在 `RoomCalendar.tsx` 的 `<style>` 中删除 `min-height: 240%` 相关 CSS 规则

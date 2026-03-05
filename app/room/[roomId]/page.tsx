@@ -167,6 +167,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
                     isReadOnly={!isMember}
                     currentUser={user}
                     roomAdminId={room.admin_id}
+                    roomBgImageUrl={room.bg_image_url}
                     {...(FEATURES.PENDING_EVENTS ? { roomEvents: roomEvents ?? [], roomId } : {})}
                 />
             </main>

@@ -44,6 +44,7 @@ export interface Room {
     description: string | null;
     expires_at: string | null;
     is_public: boolean;
+    bg_image_url: string | null;
     created_at: string;
 }
 
