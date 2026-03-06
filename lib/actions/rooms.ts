@@ -1,0 +1,250 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const createRoomSchema = z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().max(500).optional(),
+    expiresAt: z.string().optional(),
+});
+
+export async function createRoom(formData: FormData) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    // Check quota
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("room_quota")
+        .eq("id", user.id)
+        .single();
+
+    const { count: currentRooms } = await supabase
+        .from("rooms")
+        .select("*", { count: "exact", head: true })
+        .eq("admin_id", user.id);
+
+    if (profile && currentRooms !== null && currentRooms >= profile.room_quota) {
+        return { error: `已达到 Room 创建上限（${profile.room_quota} 个）` };
+    }
+
+    const parsed = createRoomSchema.safeParse({
+        name: formData.get("name"),
+        description: formData.get("description"),
+        expiresAt: formData.get("expiresAt"),
+    });
+    if (!parsed.success) return { error: "请填写 Room 名称" };
+
+    const { data: room, error } = await supabase
+        .from("rooms")
+        .insert({
+            admin_id: user.id,
+            name: parsed.data.name,
+            description: parsed.data.description || null,
+            expires_at: parsed.data.expiresAt || null,
+        })
+        .select()
+        .single();
+
+    if (error || !room) {
+        console.error("[createRoom] Error:", error);
+        return { error: `创建 Room 失败: ${error?.message || "未知错误"}` };
+    }
+
+    // Auto-join as admin member
+    const { error: joinError } = await supabase.from("room_members").insert({
+        room_id: room.id,
+        user_id: user.id,
+        color: "#6366f1", // indigo for admin
+    });
+
+    if (joinError) {
+        console.error("[createRoom] join error:", joinError);
+        return { error: `自动加入 Room 失败: ${joinError.message}` };
+    }
+
+    revalidatePath("/dashboard/rooms");
+    return { success: true, roomId: room.id };
+}
+
+export async function updateRoom(
+    roomId: string,
+    updates: { name?: string; description?: string; expiresAt?: string | null; isPublic?: boolean }
+) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const updatePayload: Record<string, unknown> = {};
+    if (updates.name !== undefined) updatePayload.name = updates.name;
+    if (updates.description !== undefined) updatePayload.description = updates.description;
+    if (updates.expiresAt !== undefined) updatePayload.expires_at = updates.expiresAt;
+    if (updates.isPublic !== undefined) updatePayload.is_public = updates.isPublic;
+
+    if (Object.keys(updatePayload).length === 0) return { error: "没有需要更新的字段" };
+
+    const { error } = await supabase
+        .from("rooms")
+        .update(updatePayload)
+        .eq("id", roomId)
+        .eq("admin_id", user.id);
+
+    if (error) return { error: "更新失败" };
+    revalidatePath(`/room/${roomId}`);
+    revalidatePath("/dashboard/rooms");
+    return { success: true };
+}
+
+export async function deleteRoom(roomId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const { error } = await supabase
+        .from("rooms")
+        .delete()
+        .eq("id", roomId)
+        .eq("admin_id", user.id);
+
+    if (error) return { error: "删除失败" };
+    revalidatePath("/dashboard/rooms");
+    return { success: true };
+}
+
+export async function getMyRooms() {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data } = await supabase
+        .from("rooms")
+        .select("*, room_members(count)")
+        .eq("admin_id", user.id)
+        .order("created_at", { ascending: false });
+
+    return data ?? [];
+}
+
+export async function searchUsers(query: string) {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) return [];
+
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    const escapedQuery = normalizedQuery.replace(/[%_\\]/g, "\\$&");
+
+    let request = supabase
+        .from("profiles")
+        .select("id, display_name")
+        .not("display_name", "is", null)
+        .ilike("display_name", `%${escapedQuery}%`)
+        .limit(10);
+
+    if (user) {
+        request = request.neq("id", user.id);
+    }
+
+    const { data } = await request;
+
+    return data ?? [];
+}
+
+export async function inviteUserToRoom(roomId: string, inviteeId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    // Verify current user is the room admin
+    const { data: room } = await supabase
+        .from("rooms")
+        .select("admin_id")
+        .eq("id", roomId)
+        .single();
+
+    if (!room || room.admin_id !== user.id) return { error: "权限不足" };
+
+    // Check if already a member
+    const { data: existing } = await supabase
+        .from("room_members")
+        .select("user_id")
+        .eq("room_id", roomId)
+        .eq("user_id", inviteeId)
+        .single();
+
+    if (existing) return { error: "该用户已是 Room 成员" };
+
+    // Check for pending invitation
+    const { data: pendingInv } = await supabase
+        .from("invitations")
+        .select("id")
+        .eq("room_id", roomId)
+        .eq("invitee_id", inviteeId)
+        .eq("status", "pending")
+        .single();
+
+    if (pendingInv) return { error: "已发送过邀请，等待对方回应" };
+
+    const { error } = await supabase.from("invitations").insert({
+        room_id: roomId,
+        invitee_id: inviteeId,
+        inviter_id: user.id,
+        status: "pending",
+    });
+
+    if (error) return { error: "发送邀请失败" };
+    return { success: true };
+}
+
+export async function getRoomMembers(roomId: string) {
+    const supabase = await createClient();
+
+    const { data } = await supabase
+        .from("room_members")
+        .select("*, profile:profiles(id, display_name, role)")
+        .eq("room_id", roomId);
+
+    return data ?? [];
+}
+
+export async function removeRoomMember(roomId: string, userId: string) {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "请先登录" };
+
+    const { data: room } = await supabase
+        .from("rooms")
+        .select("admin_id")
+        .eq("id", roomId)
+        .single();
+
+    if (!room || room.admin_id !== user.id) return { error: "权限不足" };
+    if (userId === room.admin_id) return { error: "无法移除 Room 管理员" };
+
+    const { error } = await supabase
+        .from("room_members")
+        .delete()
+        .eq("room_id", roomId)
+        .eq("user_id", userId);
+
+    if (error) return { error: "移除失败" };
+    revalidatePath(`/room/${roomId}`);
+    return { success: true };
+}
