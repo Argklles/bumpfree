@@ -36,7 +36,7 @@ export default function UpdatePasswordPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="min-h-screen flex items-center justify-center px-4">
             <div className="w-full max-w-sm">
                 <div className="flex items-center justify-center gap-2 mb-8">
                     <Zap className="w-6 h-6 text-primary" />

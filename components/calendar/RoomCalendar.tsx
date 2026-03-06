@@ -49,12 +49,10 @@ interface RoomCalendarProps {
     roomId?: string;
     currentUser?: any;
     roomAdminId?: string;
-    roomBgImageUrl?: string | null;
 }
-
 type ViewMode = "month" | "week" | "person";
 
-export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = [], roomId, currentUser, roomAdminId, roomBgImageUrl }: RoomCalendarProps) {
+export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = [], roomId, currentUser, roomAdminId }: RoomCalendarProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("week");
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -67,15 +65,24 @@ export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = []
     const [fontSize, setFontSize] = useState<number>(0.72);
     const [fontColor, setFontColor] = useState<string>("#ffffff");
     const [bgImage, setBgImage] = useState<string>("");
+    const [bgOpacity, setBgOpacity] = useState<number>(0.12);
 
     // Load preferences on mount
     useEffect(() => {
         const storedSize = localStorage.getItem("room-font-size");
         const storedColor = localStorage.getItem("room-font-color");
         const storedBg = localStorage.getItem("room-bg-image");
+        const storedOpacity = localStorage.getItem("room-bg-opacity");
+
         if (storedSize) setFontSize(parseFloat(storedSize));
         if (storedColor) setFontColor(storedColor);
         if (storedBg) setBgImage(storedBg);
+        if (storedOpacity) {
+            const op = parseFloat(storedOpacity);
+            setBgOpacity(op);
+            // Notify AppBackground of the user overridden opacity initially
+            window.dispatchEvent(new CustomEvent("local-bg-opacity", { detail: op }));
+        }
     }, []);
 
     // Save preferences when they change
@@ -96,6 +103,13 @@ export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = []
         } else {
             localStorage.removeItem("room-bg-image");
         }
+    }
+
+    function handleBgOpacityChange(opacity: number) {
+        setBgOpacity(opacity);
+        localStorage.setItem("room-bg-opacity", opacity.toString());
+        // Dispatch event for AppBackground
+        window.dispatchEvent(new CustomEvent("local-bg-opacity", { detail: opacity }));
     }
 
     function handleSelectSlot(slotInfo: { start: Date; end: Date; action: "select" | "click" | "doubleClick" }) {
@@ -296,133 +310,145 @@ export function RoomCalendar({ memberData, roomName, isReadOnly, roomEvents = []
     return (
         <div className="flex flex-col h-[calc(100vh-3.5rem)]">
             {/* Toolbar */}
-            <div className="border-b border-border/60 px-4 py-3 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                {/* View switcher */}
-                <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-                    <Button
-                        variant={viewMode === "month" ? "default" : "ghost"}
-                        size="sm"
-                        className="h-7 px-3 text-xs gap-1"
-                        onClick={() => setViewMode("month")}
-                    >
-                        <LayoutGrid className="w-3.5 h-3.5" />
-                        月视图
-                    </Button>
-                    <Button
-                        variant={viewMode === "week" ? "default" : "ghost"}
-                        size="sm"
-                        className="h-7 px-3 text-xs gap-1"
-                        onClick={() => setViewMode("week")}
-                    >
-                        <CalendarIcon className="w-3.5 h-3.5" />
-                        周视图
-                    </Button>
-                    <Button
-                        variant={viewMode === "person" ? "default" : "ghost"}
-                        size="sm"
-                        className="h-7 px-3 text-xs gap-1"
-                        onClick={() => { setViewMode("person"); if (!selectedUserId && memberData.length > 0) setSelectedUserId(memberData[0].userId); }}
-                    >
-                        <User className="w-3.5 h-3.5" />
-                        按人
-                    </Button>
-                </div>
-
-                {/* Navigation */}
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
-                        const d = new Date(currentDate);
-                        if (viewMode === "month") d.setMonth(d.getMonth() - 1);
-                        else d.setDate(d.getDate() - 7);
-                        setCurrentDate(d);
-                    }}>
-                        <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCurrentDate(new Date())}>
-                        今天
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
-                        const d = new Date(currentDate);
-                        if (viewMode === "month") d.setMonth(d.getMonth() + 1);
-                        else d.setDate(d.getDate() + 7);
-                        setCurrentDate(d);
-                    }}>
-                        <ChevronRight className="w-4 h-4" />
-                    </Button>
-                </div>
-
-                {/* Member legend / person filter */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    {memberData.map((m) => (
-                        <button
-                            key={m.userId}
-                            onClick={() => {
-                                if (viewMode === "person") {
-                                    setSelectedUserId(m.userId);
-                                }
-                            }}
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors ${viewMode === "person" && selectedUserId === m.userId
-                                ? "ring-2 ring-offset-1 bg-muted"
-                                : "hover:bg-muted"
-                                }`}
-                            style={{ "--ring-color": m.color } as React.CSSProperties}
+            <div className="border-b border-border/60 px-4 py-3 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+                {/* Left side: View switcher & Date */}
+                <div className="flex items-center gap-4">
+                    {/* View switcher */}
+                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                        <Button
+                            variant={viewMode === "month" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 px-3 text-xs gap-1"
+                            onClick={() => setViewMode("month")}
                         >
-                            <span
-                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: m.color }}
-                            />
-                            <span className="font-medium">{m.displayName}</span>
-                        </button>
-                    ))}
-                    {isReadOnly && (
-                        <Badge variant="outline" className="text-xs">只读模式</Badge>
-                    )}
-                    {roomId && memberData.length > 0 && roomAdminId && (
-                        <RoomSettingsDialog
-                            roomId={roomId}
-                            currentUser={currentUser}
-                            roomAdminId={roomAdminId}
-                            members={memberData as any}
-                            currentFontSize={fontSize}
-                            onFontSizeChange={handleFontSizeChange}
-                            currentFontColor={fontColor}
-                            onFontColorChange={handleFontColorChange}
-                            currentBgImage={bgImage}
-                            onBgImageChange={handleBgImageChange}
-                            roomBgImageUrl={roomBgImageUrl}
-                        />
-                    )}
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                            月视图
+                        </Button>
+                        <Button
+                            variant={viewMode === "week" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 px-3 text-xs gap-1"
+                            onClick={() => setViewMode("week")}
+                        >
+                            <CalendarIcon className="w-3.5 h-3.5" />
+                            周视图
+                        </Button>
+                        <Button
+                            variant={viewMode === "person" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 px-3 text-xs gap-1"
+                            onClick={() => { setViewMode("person"); if (!selectedUserId && memberData.length > 0) setSelectedUserId(memberData[0].userId); }}
+                        >
+                            <User className="w-3.5 h-3.5" />
+                            按人
+                        </Button>
+                    </div>
 
-                    {!isReadOnly && roomId && FEATURES.PENDING_EVENTS && (
-                        <CreateEventDialog
-                            key={selectedSlot ? selectedSlot.start.toISOString() : (editingEvent?.id || 'default')}
-                            roomId={roomId}
-                            open={eventDialogOpen}
-                            onOpenChange={(open) => {
-                                setEventDialogOpen(open);
-                                if (!open) {
-                                    setSelectedSlot(null);
-                                    setEditingEvent(null);
-                                }
-                            }}
-                            defaultStartTime={selectedSlot?.start}
-                            defaultEndTime={selectedSlot?.end}
-                            editingEvent={editingEvent}
-                        />
-                    )}
+                    {/* Date Display */}
+                    <div className="text-sm font-medium">
+                        {format(currentDate, "yyyy年 M月")}
+                    </div>
+                </div>
+
+                {/* Right side: Navigation & Filters */}
+                <div className="flex items-center gap-3 flex-wrap sm:justify-end">
+                    {/* Navigation */}
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
+                            const d = new Date(currentDate);
+                            if (viewMode === "month") d.setMonth(d.getMonth() - 1);
+                            else d.setDate(d.getDate() - 7);
+                            setCurrentDate(d);
+                        }}>
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCurrentDate(new Date())}>
+                            今天
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
+                            const d = new Date(currentDate);
+                            if (viewMode === "month") d.setMonth(d.getMonth() + 1);
+                            else d.setDate(d.getDate() + 7);
+                            setCurrentDate(d);
+                        }}>
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    {/* Member legend / person filter */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {memberData.map((m) => (
+                            <button
+                                key={m.userId}
+                                onClick={() => {
+                                    if (viewMode === "person") {
+                                        setSelectedUserId(m.userId);
+                                    }
+                                }}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors ${viewMode === "person" && selectedUserId === m.userId
+                                    ? "ring-2 ring-offset-1 bg-muted"
+                                    : "hover:bg-muted"
+                                    }`}
+                                style={{ "--ring-color": m.color } as React.CSSProperties}
+                            >
+                                <span
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: m.color }}
+                                />
+                                <span className="font-medium">{m.displayName}</span>
+                            </button>
+                        ))}
+                        {isReadOnly && (
+                            <Badge variant="outline" className="text-xs">只读模式</Badge>
+                        )}
+                        {roomId && memberData.length > 0 && roomAdminId && (
+                            <RoomSettingsDialog
+                                roomId={roomId}
+                                currentUser={currentUser}
+                                roomAdminId={roomAdminId}
+                                members={memberData as any}
+                                currentFontSize={fontSize}
+                                onFontSizeChange={handleFontSizeChange}
+                                currentFontColor={fontColor}
+                                onFontColorChange={handleFontColorChange}
+                                currentBgImage={bgImage}
+                                onBgImageChange={handleBgImageChange}
+                                currentBgOpacity={bgOpacity}
+                                onBgOpacityChange={handleBgOpacityChange}
+                            />
+                        )}
+
+                        {!isReadOnly && roomId && FEATURES.PENDING_EVENTS && (
+                            <CreateEventDialog
+                                key={selectedSlot ? selectedSlot.start.toISOString() : (editingEvent?.id || 'default')}
+                                roomId={roomId}
+                                open={eventDialogOpen}
+                                onOpenChange={(open) => {
+                                    setEventDialogOpen(open);
+                                    if (!open) {
+                                        setSelectedSlot(null);
+                                        setEditingEvent(null);
+                                    }
+                                }}
+                                defaultStartTime={selectedSlot?.start}
+                                defaultEndTime={selectedSlot?.end}
+                                editingEvent={editingEvent}
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Calendar */}
             <div className="flex-1 overflow-hidden p-2 relative">
-                {(bgImage || roomBgImageUrl) && (
+                {bgImage && (
                     <div
                         className="absolute inset-0 z-0 pointer-events-none"
                         style={{
-                            backgroundImage: `url(${bgImage || roomBgImageUrl})`,
+                            backgroundImage: `url(${bgImage})`,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
-                            opacity: 0.12,
+                            opacity: bgOpacity,
                         }}
                     />
                 )}

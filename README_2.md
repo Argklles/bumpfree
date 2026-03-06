@@ -13,7 +13,7 @@
 ### 涉及文件
 | 类型 | 路径 | 说明 |
 |------|------|------|
-| 数据库 | `supabase/add/001_add_event.sql` | 创建 `room_events` 表及 RLS 策略 |
+| 数据库 | `supabase/add/01_plugin_pending_events.sql` | 创建 `room_events` 表及 RLS 策略 |
 | 类型 | `plugins/pending-events/types.ts` → `RoomEvent` | 事件数据结构定义 |
 | Server Actions | `plugins/pending-events/actions.ts` | CRUD：`createRoomEvent` / `updateRoomEvent` / `deleteRoomEvent` |
 | UI 组件 | `plugins/pending-events/CreateEventDialog.tsx` | 新建/编辑/删除事件的弹窗表单 |
@@ -39,7 +39,7 @@
 | UI 组件 | `plugins/room-settings/RoomSettingsDialog.tsx` | 设置弹窗（⚙️ 齿轮图标触发） |
 | Server Actions | `plugins/room-settings/actions.ts` | `updateMemberColor` 修改成员代表色, `updateRoomGlobalBg` 更新全局背景 |
 | 数据库 | `supabase/migrations/004_room_members_update_policy.sql` | 为 `room_members` 添加 UPDATE RLS 策略 |
-| 数据库 | `supabase/add/002_add_global_bg.sql` | `rooms.bg_image_url` 字段及 Storage 策略 |
+| 数据库 | `supabase/add/02_plugin_room_settings.sql` | 包含 `rooms.bg_image_url` 弃用说明、`app_settings` 表存储及 RLS 策略、并修复了成员列表颜色可见性的 Bug |
 | 依赖 | `components/ui/slider.tsx` | shadcn Slider 组件（字体大小滑块） |
 
 ### 功能明细
@@ -52,16 +52,19 @@
 - 4 个预设色 + 原生颜色选择器
 - 存储：`localStorage` → `room-font-color`
 
-#### 2.3 背景图片（全局/本地双层架构）
-- **全局背景 (全局同步)**
-  - 仅当前 Room 管理员可设置（上传图片至 Supabase Storage）。
-  - 图片 URL 存储在 `rooms.bg_image_url`，面向所有访问者生效。
-  - Storage Bucket: `room-backgrounds`，带严格的 RLS。
+#### 2.3 背景图片（App级全局/个人本地双架构）
+- **App级全局背景**
+  - 由体系 Superadmin 在后台统一设置与管理（支持多图上传）。
+  - 支持通过管理员面板选用：单图、多图轮播（随页面更新按序切换）、多图随机展示（随页面更新随机切换）。
+  - 支持配置应用范围：涵盖 Room 日历页、应用登录/注册相关页面、Dashboard 仪表盘等。
+  - ⚠️ **开发注意**：由于 `<AppBackground />` 为全局底层组件，为了确保其能够正常透出，相关页面及其 Layout 的根节点**不得使用不透明的 `bg-background` 样式**（已于本次更新中移除相关路由的遮挡样式）。
+  - 图片不再使用定时器切换，而是在用户刷新页面或在不同页面间导航时触发更换。
+  - 图片 URL 存储在 `app_settings` 表，面向所有访问者生效。Storage Bucket: `app-backgrounds`，带严格的 RLS。
 - **个人本地背景 (仅本地有效)**
-  - 任何人皆可上传本地背景。
-  - 本地背景**优先级最高**，会覆盖掉群组的全局背景。
-  - 存储：`localStorage` → `room-bg-image`（base64 DataURL）。
-- 支持一键清除背景，恢复默认透明效果（全局以 12% 透明度覆盖）。
+  - 任何人皆可上传属于自己机器的本地背景图并单独设置透明度。
+  - 本地背景及透明度**优先级最高**，会覆盖 App 的系统级背景展示。
+  - 存储：`base64` / `数值` 入 `localStorage` → `room-bg-image` / `room-bg-opacity`。
+- 支持一键清除本地背景，恢复全站级的整体设置。
 
 #### 2.4 成员代表色（全局同步）
 - 修改 `room_members.color` 字段，全局可见
@@ -96,8 +99,8 @@
 | `002_fix_rls.sql` | 清理旧策略的重置脚本 | ✅ 已执行 |
 | `003_fix_rooms_recursion.sql` | 修复 rooms 递归查询 | ✅ 已执行 |
 | `004_room_members_update_policy.sql` | 添加 `room_members` UPDATE RLS | ⚠️ 需手动执行 |
-| `add/001_add_event.sql` | 创建 `room_events` 表 | ⚠️ 需手动执行 |
-| `add/002_add_global_bg.sql` | 新增 `bg_image_url` 并配置 Storage RLS | ⚠️ 需手动执行 |
+| `add/01_plugin_pending_events.sql` | 创建 `room_events` 待定事件表及 RLS 策略 | ⚠️ 需手动执行 |
+| `add/02_plugin_room_settings.sql` | 创建系统全局背景配置 `app_settings` 表并修复日历成员颜色可见性 RLS | ⚠️ 需统一手动执行 |
 
 ---
 
@@ -131,16 +134,15 @@
 5. 可选：`npx shadcn@latest remove slider`（如无其他地方使用）
 
 #### 去除「背景图片」功能（仅去掉背景，保留其他设置）
-1. 在 `plugins/room-settings/RoomSettingsDialog.tsx` 中删除「设置背景」相关（搜索 `Background Settings` 及其子区块，或者 `uploadingBg`、`handleGlobalBgUpload` 逻辑并移除相应导入）。
+1. 在 `plugins/room-settings/RoomSettingsDialog.tsx` 中删除「Background Settings」区块相关的 UI 与 State。
 2. 在 `RoomCalendar.tsx` 中：
-   - 删除 `bgImage` 与 `roomBgImageUrl` 的渲染及 `handleBgImageChange` 函数
-   - 删除 `useEffect` 中读取 `room-bg-image` 的行
-   - 删除 `<div>` 背景图 overlay
-   - 删除传给 `RoomSettingsDialog` 的 `currentBgImage`、`onBgImageChange` 和 `roomBgImageUrl` props
-3. 在 `app/room/[roomId]/page.tsx` 中删除向日历传入 `roomBgImageUrl={room.bg_image_url}` 逻辑
-4. 数据库侧（可选）：
-   - `ALTER TABLE public.rooms DROP COLUMN bg_image_url;`
-   - 去 Supabase Storage 删除 `room-backgrounds` 桶
+   - 删除 `bgImage` 与 `bgOpacity` 的渲染与 Storage 获取，以及相关的 customEvent 触发。
+   - 删除底层的 `<div>` 背景图 overlay。
+3. 在 `app/layout.tsx` 中删除对 `<AppBackground />` 及对 `getAppSettings()` 等调用。
+4. 去除后台管理员相关配置页面 `app/admin/settings/page.tsx` 与相关组件。
+5. 数据库侧（可选）：
+   - `DROP TABLE public.app_settings;`
+   - 去 Supabase Storage 删除 `app-backgrounds` 桶
 
 #### 去除「日历布局优化（10小时视窗）」
 1. 在 `RoomCalendar.tsx` 的 `<style>` 中删除 `min-height: 240%` 相关 CSS 规则

@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (profile?.role !== "superadmin") redirect("/dashboard");
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex min-h-screen">
             <aside className="hidden md:flex w-60 flex-col border-r border-border/60 p-4">
                 <div className="flex items-center gap-2 px-2 py-3 mb-2">
                     <Zap className="w-5 h-5 text-primary" />

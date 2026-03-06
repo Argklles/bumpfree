@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Info } from "lucide-react";
+import { AppBackgroundSettings } from "@/components/admin/AppBackgroundSettings";
+import { getAppSettings } from "@/plugins/app-settings/actions";
 
 export default async function AdminSettingsPage() {
     const supabase = await createClient();
@@ -18,6 +20,8 @@ export default async function AdminSettingsPage() {
         .single();
 
     if (profile?.role !== "superadmin") redirect("/dashboard");
+
+    const appSettings = await getAppSettings();
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
@@ -48,6 +52,8 @@ export default async function AdminSettingsPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {appSettings && <AppBackgroundSettings initialSettings={appSettings} />}
 
             <Card>
                 <CardHeader>

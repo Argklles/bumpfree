@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { AppBackground } from "@/components/AppBackground";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   description: "高校学生课表聚合协作工具，轻松找到多人共同空闲时间",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AppBackground />
           {children}
           <Toaster richColors position="top-right" />
         </ThemeProvider>

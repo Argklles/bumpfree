@@ -28,39 +28,49 @@ export function ScrollCollision() {
     const combinedOpacity = useTransform(smoothProgress, [0.65, 0.75], [0, 1]);
     const scaleCombined = useTransform(smoothProgress, [0.65, 0.8, 1], [0.8, 1.1, 1]);
 
-    const textOpacity1 = useTransform(smoothProgress, [0, 0.1, 0.3, 0.4], [0, 1, 1, 0]);
-    const yText1 = useTransform(smoothProgress, [0, 0.4], [50, -50]);
+    // Left Text: The Problem
+    const textOpacity1 = useTransform(smoothProgress, [0, 0.1, 0.3, 0.45], [0, 1, 1, 0]);
+    const yText1 = useTransform(smoothProgress, [0, 0.45], [50, -50]);
+    const scaleText1 = useTransform(smoothProgress, [0.3, 0.45], [1, 0.9]);
 
-    const textOpacity2 = useTransform(smoothProgress, [0.4, 0.5, 0.8, 1], [0, 1, 1, 1]);
-    const yText2 = useTransform(smoothProgress, [0.4, 0.7], [50, 0]);
+    // Right Text: The Solution
+    const textOpacity2 = useTransform(smoothProgress, [0.45, 0.55, 0.8, 1], [0, 1, 1, 1]);
+    const yText2 = useTransform(smoothProgress, [0.45, 0.7], [50, 0]);
+    const scaleText2 = useTransform(smoothProgress, [0.45, 0.6], [0.9, 1]);
 
     return (
-        <section ref={containerRef} className="h-[150vh] relative w-full bg-background">
-            <div className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden">
+        <section
+            ref={containerRef}
+            className="h-[150vh] relative w-full bg-background"
+        >
+            <div className="sticky top-0 h-screen w-full flex flex-col md:flex-row items-center justify-center overflow-hidden px-4 md:px-12">
 
-                {/* Text 1: The Problem */}
-                <motion.div
-                    className="absolute text-center z-20 px-4"
-                    style={{ opacity: textOpacity1, y: yText1 }}
-                >
-                    <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">每个人的日程都散落各处</h2>
-                    <p className="text-xl text-muted-foreground">沟通成本极高，寻找空闲耗时耗力</p>
-                </motion.div>
+                {/* Left Side: Dynamic Text Area */}
+                <div className="relative w-full md:w-1/2 h-48 md:h-[400px] flex items-center justify-center -mt-10 md:mt-0 order-1 md:order-1">
+                    {/* Text 1: The Problem */}
+                    <motion.div
+                        className="absolute text-center md:text-left z-20 w-full max-w-lg"
+                        style={{ opacity: textOpacity1, y: yText1, scale: scaleText1 }}
+                    >
+                        <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 md:mb-6">每个人的日程<br className="hidden md:block" />都散落各处</h2>
+                        <p className="text-xl md:text-2xl text-muted-foreground">沟通成本极高，寻找空闲耗时耗力</p>
+                    </motion.div>
 
-                {/* Text 2: The Solution */}
-                <motion.div
-                    className="absolute text-center z-20 px-4"
-                    style={{ opacity: textOpacity2, y: yText2 }}
-                >
-                    <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">通过 BumpFree 聚合重叠</h2>
-                    <p className="text-xl text-muted-foreground">滑动滚轮，见证绝佳的共同空闲时段浮现</p>
-                </motion.div>
+                    {/* Text 2: The Solution */}
+                    <motion.div
+                        className="absolute text-center md:text-left z-20 w-full max-w-lg pointer-events-none"
+                        style={{ opacity: textOpacity2, y: yText2, scale: scaleText2 }}
+                    >
+                        <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 md:mb-6 text-primary">聚合重叠</h2>
+                        <p className="text-xl md:text-2xl text-muted-foreground">滑动滚轮，见证绝佳的共同空闲时段浮现</p>
+                    </motion.div>
+                </div>
 
-                {/* Animation Canvas */}
-                <div className="relative w-full max-w-[800px] h-[400px] flex items-center justify-center -mt-20">
+                {/* Right Side: Animation Canvas */}
+                <div className="relative w-full md:w-1/2 h-[300px] md:h-[500px] flex items-center justify-center order-2 md:order-2 mt-4 md:mt-0">
 
                     {/* Background Grid Setup */}
-                    <div className="absolute inset-0 grid grid-cols-7 gap-px p-4 opacity-[0.03]">
+                    <div className="absolute inset-0 grid grid-cols-7 gap-px p-4 opacity-[0.03] pointer-events-none">
                         {Array.from({ length: 28 }).map((_, i) => (
                             <div key={i} className="bg-foreground rounded-sm" />
                         ))}

@@ -46,7 +46,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
         if (!user) redirect("/auth/login");
         // Logged in but not a member
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background px-4">
+            <div className="min-h-screen flex items-center justify-center px-4">
                 <div className="text-center max-w-sm">
                     <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                     <h1 className="text-xl font-semibold mb-2">无访问权限</h1>
@@ -113,7 +113,7 @@ export default async function RoomPage({ params }: RoomPageProps) {
     }
 
     return (
-        <div className="min-h-screen bg-background flex flex-col">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
             <header className="border-b border-border/60 sticky top-0 z-40 bg-background/80 backdrop-blur">
                 <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
@@ -167,7 +167,6 @@ export default async function RoomPage({ params }: RoomPageProps) {
                     isReadOnly={!isMember}
                     currentUser={user}
                     roomAdminId={room.admin_id}
-                    roomBgImageUrl={room.bg_image_url}
                     {...(FEATURES.PENDING_EVENTS ? { roomEvents: roomEvents ?? [], roomId } : {})}
                 />
             </main>

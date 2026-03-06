@@ -87,3 +87,17 @@ export interface CalendarEvent {
         description?: string | null;
     };
 }
+
+export interface AppBgImage {
+    url: string;
+    name: string;
+}
+
+export interface AppSettings {
+    id: number;
+    bg_images: AppBgImage[];
+    bg_play_mode: 'single' | 'carousel' | 'random';
+    bg_locations: string[]; // e.g., ['room', 'login', 'dashboard']
+    bg_opacity: number;
+    updated_at: string;
+}

@@ -8,7 +8,7 @@ import { FloatingHeroElements } from "@/components/motion/FloatingHeroElements";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Nav */}
       <header className="border-b border-border/40 backdrop-blur sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -161,9 +161,8 @@ export default function LandingPage() {
             </ScrollReveal>
           </div>
         </section>
-
         {/* How it works */}
-        <section className="bg-card border-t border-border/40 py-24">
+        <section className="bg-card/40 backdrop-blur-sm border-t border-border/40 py-24">
           <div className="max-w-6xl mx-auto px-4">
             <ScrollReveal className="text-center mb-16">
               <h2 className="text-3xl font-bold mb-4">极简三步，开始协作</h2>
@@ -179,8 +178,8 @@ export default function LandingPage() {
                 { step: "2", title: "无缝导入", desc: "前往原课表软件点击分享并复制口令，粘贴到个人设置中心。" },
                 { step: "3", title: "一键开房", desc: "创建一个 Room 并发送专属链接给组员，日历矩阵瞬间生成。" },
               ].map((item, index) => (
-                <ScrollReveal key={item.step} delay={index * 0.15} className="relative bg-card/50">
-                  <div className="w-14 h-14 rounded-full bg-background border border-border/60 flex items-center justify-center text-xl font-bold text-primary mb-6 shadow-sm mx-auto md:mx-0">
+                <ScrollReveal key={item.step} delay={index * 0.15} className="relative bg-card/40 backdrop-blur p-6 rounded-2xl border border-border/50">
+                  <div className="w-14 h-14 rounded-full bg-background/50 border border-border/60 flex items-center justify-center text-xl font-bold text-primary mb-6 shadow-sm mx-auto md:mx-0">
                     {item.step}
                   </div>
                   <h3 className="font-semibold text-xl mb-3 text-center md:text-left">{item.title}</h3>
@@ -210,7 +209,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-border/40 py-10 text-center text-sm text-muted-foreground bg-background">
+      <footer className="border-t border-border/40 py-10 text-center text-sm text-muted-foreground bg-background/40 backdrop-blur-sm">
         <div className="flex flex-col items-center justify-center gap-4">
           <p>© 2026 BumpFree</p>
           <a
@@ -238,7 +237,7 @@ function FeatureCard({
   desc: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background p-8 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 h-full shadow-sm">
+    <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 h-full shadow-sm">
       <div className="text-primary mb-5 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">{icon}</div>
       <h3 className="font-semibold text-xl mb-3">{title}</h3>
       <p className="text-muted-foreground leading-relaxed">{desc}</p>

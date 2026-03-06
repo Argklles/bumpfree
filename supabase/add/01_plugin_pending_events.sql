@@ -1,3 +1,8 @@
+-- ============================================================
+-- 插件模块：待定事件系统 (Pending Events)
+-- 说明：为房间成员提供创建、编辑、删除临时/待定事件的公共课表日历日历功能。
+-- ============================================================
+
 create table if not exists public.room_events (
   id uuid primary key default gen_random_uuid(),
   room_id uuid references public.rooms(id) on delete cascade,

@@ -15,7 +15,6 @@ import { Settings, Loader2, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { updateMemberColor } from "@/plugins/room-settings/actions";
-import { updateRoomGlobalBg } from "@/plugins/room-settings/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { RoomMember, Profile } from "@/lib/types";
 
@@ -36,7 +35,8 @@ interface RoomSettingsDialogProps {
     onFontColorChange: (color: string) => void;
     currentBgImage: string;
     onBgImageChange: (dataUrl: string) => void;
-    roomBgImageUrl?: string | null;
+    currentBgOpacity: number;
+    onBgOpacityChange: (opacity: number) => void;
 }
 
 const PRESET_COLORS = [
@@ -57,15 +57,13 @@ export function RoomSettingsDialog({
     onFontColorChange,
     currentBgImage,
     onBgImageChange,
-    roomBgImageUrl
+    currentBgOpacity,
+    onBgOpacityChange,
 }: RoomSettingsDialogProps) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
-    const [uploadingBg, setUploadingBg] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const globalBgInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
-    const supabase = createClient();
 
     const isAdmin = currentUser?.id === roomAdminId;
 
@@ -76,62 +74,6 @@ export function RoomSettingsDialog({
                 toast.error(result.error);
             } else {
                 router.refresh(); // Refresh page to get new server data
-            }
-        });
-    }
-
-    async function handleGlobalBgUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error("全局背景图片不能超过 5MB");
-            return;
-        }
-
-        setUploadingBg(true);
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${roomId}/bg-${Date.now()}.${fileExt}`;
-
-        try {
-            // 1. Upload to Supabase Storage
-            const { error: uploadError, data } = await supabase.storage
-                .from("room-backgrounds")
-                .upload(fileName, file, { upsert: true });
-
-            if (uploadError) throw new Error(uploadError.message);
-
-            // 2. Get public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from("room-backgrounds")
-                .getPublicUrl(data.path);
-
-            // 3. Update DB via server action
-            startTransition(async () => {
-                const res = await updateRoomGlobalBg(roomId, publicUrl);
-                if (res.error) {
-                    toast.error(res.error);
-                } else {
-                    toast.success("全局背景已更新");
-                    router.refresh();
-                }
-            });
-        } catch (err: any) {
-            console.error("Upload error:", err);
-            toast.error("图片上传失败: " + (err.message || "未知错误"));
-        } finally {
-            setUploadingBg(false);
-            if (globalBgInputRef.current) globalBgInputRef.current.value = "";
-        }
-    }
-
-    function handleGlobalBgRemove() {
-        startTransition(async () => {
-            const res = await updateRoomGlobalBg(roomId, null);
-            if (res.error) {
-                toast.error(res.error);
-            } else {
-                toast.success("全局背景已清除");
-                router.refresh();
             }
         });
     }
@@ -195,54 +137,6 @@ export function RoomSettingsDialog({
 
                     {/* Background Settings */}
                     <div className="space-y-6">
-                        {/* Global Background (Admin only) */}
-                        {isAdmin && (
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-medium text-foreground border-b pb-2 flex items-center justify-between">
-                                    <span>房间全局背景图 (所有人可见)</span>
-                                </h3>
-                                <div className="space-y-3">
-                                    {roomBgImageUrl ? (
-                                        <div className="relative rounded-lg overflow-hidden border border-border group">
-                                            <img src={roomBgImageUrl} alt="全局背景" className="w-full h-24 object-cover" />
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    disabled={uploadingBg || isPending}
-                                                    onClick={() => handleGlobalBgRemove()}
-                                                >
-                                                    {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <X className="w-4 h-4 mr-2" />}
-                                                    清除全局背景
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => globalBgInputRef.current?.click()}
-                                            disabled={uploadingBg || isPending}
-                                            className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary/50 hover:text-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {uploadingBg ? (
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                            ) : (
-                                                <ImagePlus className="w-5 h-5" />
-                                            )}
-                                            <span className="text-xs">{uploadingBg ? "正在上传..." : "上传全局背景"}</span>
-                                        </button>
-                                    )}
-                                    <input
-                                        ref={globalBgInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleGlobalBgUpload}
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">全局背景对所有成员生效。如果成员设置了本地背景，则会被本地背景覆盖。</p>
-                                </div>
-                            </div>
-                        )}
-
                         {/* Local Background */}
                         <div className="space-y-4">
                             <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">
@@ -266,9 +160,7 @@ export function RoomSettingsDialog({
                                         className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary/50 hover:text-primary/80 transition-colors"
                                     >
                                         <ImagePlus className="w-5 h-5" />
-                                        <span className="text-xs">
-                                            {roomBgImageUrl ? "上传本地背景（将覆盖全局图片）" : "上传本地背景图"}
-                                        </span>
+                                        <span className="text-xs">上传本地背景图</span>
                                     </button>
                                 )}
                                 <input
@@ -294,6 +186,21 @@ export function RoomSettingsDialog({
                                     }}
                                 />
                                 <p className="text-[10px] text-muted-foreground">支持 JPG / PNG / WebP，建议 ≤ 5MB。本地设置优先级最高。</p>
+                            </div>
+
+                            <div className="space-y-3 pt-2">
+                                <div className="flex justify-between items-center">
+                                    <Label>透明度调节</Label>
+                                    <span className="text-xs text-muted-foreground">{Math.round(currentBgOpacity * 100)}%</span>
+                                </div>
+                                <Slider
+                                    value={[currentBgOpacity * 100]}
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    onValueChange={(vals) => onBgOpacityChange(vals[0] / 100)}
+                                />
+                                <p className="text-[10px] text-muted-foreground">如果设置了本地背景则调节本地透明度，否则调节全站背景的显示透明度。</p>
                             </div>
                         </div>
                     </div>
